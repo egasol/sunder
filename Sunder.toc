@@ -1,0 +1,7 @@
+## Interface: 11508
+## Title: Sunder
+## Notes: Shows Sunder Armor stacks on enemy nameplates.
+## Author: You
+## Version: 1.0.0
+
+Sunder.lua
