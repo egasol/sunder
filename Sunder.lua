@@ -9,30 +9,26 @@ local DEFAULTS = {
 
 local settings = {}
 
-local sunderSpellName = GetSpellInfo(7386)
+local sunderSpellName = GetSpellInfo(SUNDER_SPELL_ID)
 local sunderSpellIds = {
-    [7386] = true,
-    [7405] = true,
-    [8380] = true,
-    [11596] = true,
-    [11597] = true,
+    [SUNDER_SPELL_ID_RANK1] = true,
+    [SUNDER_SPELL_ID_RANK2] = true,
+    [SUNDER_SPELL_ID_RANK3] = true,
+    [SUNDER_SPELL_ID_RANK4] = true,
+    [SUNDER_SPELL_ID_RANK5] = true,
 }
 
 local trackedNameplates = {}
 local isEnabled = true
 
-local PIP_SIZE     = 5
-local PIP_GAP      = 3
-local MAX_STACKS   = 5
-
-local sunderIconTexture = GetSpellTexture(7386)
+local sunderIconTexture = GetSpellTexture(SUNDER_SPELL_ID)
 
 local function IsNameplateUnit(unit)
     return type(unit) == "string" and unit:match("^nameplate%d+$") ~= nil
 end
 
 local function GetSunderStacks(unit)
-    for i = 1, 40 do
+    for i = 1, SUNDER_DEBUFF_SCAN_MAX do
         local name, _, count, _, _, _, _, _, _, spellId = UnitDebuff(unit, i)
         if not name then
             break
@@ -66,7 +62,7 @@ local function StartPulse(indicator)
     indicator.pulseTime = indicator.pulseTime or 0
     indicator:SetScript("OnUpdate", function(self, elapsed)
         self.pulseTime = self.pulseTime + elapsed
-        self.glow:SetAlpha(0.45 + 0.45 * math.sin(self.pulseTime * settings.pulseSpeed))
+        self.glow:SetAlpha(SUNDER_PULSE_ALPHA_MIN + SUNDER_PULSE_ALPHA_MAX * math.sin(self.pulseTime * settings.pulseSpeed))
     end)
 end
 
@@ -83,48 +79,55 @@ local function BuildIndicator(nameplate)
     -- Root container sits just below the health bar, left-aligned
     local indicator = CreateFrame("Frame", nil, nameplate)
     indicator:SetFrameStrata(nameplate:GetFrameStrata())
-    indicator:SetFrameLevel(healthBar:GetFrameLevel() + 15)
+    indicator:SetFrameLevel(healthBar:GetFrameLevel() + SUNDER_FRAME_LEVEL_OFFSET)
     local iconSize = settings.iconSize
-    indicator:SetSize(iconSize + 2, iconSize + PIP_SIZE + PIP_GAP + 2)
-    indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT", -1, -3)
+    indicator:SetSize(iconSize + SUNDER_ICON_BORDER_PAD,
+                      iconSize + SUNDER_PIP_SIZE + SUNDER_PIP_GAP + SUNDER_ICON_BORDER_PAD)
+    indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT",
+                       SUNDER_ICON_ANCHOR_X, SUNDER_ICON_ANCHOR_Y)
     indicator:Hide()
 
     -- Pulsing glow halo behind the icon (green at max stacks)
     local glow = indicator:CreateTexture(nil, "BACKGROUND")
-    glow:SetPoint("TOPLEFT",     indicator, "TOPLEFT",     -3,  3)
-    glow:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT",  3, -3)
+    glow:SetPoint("TOPLEFT",     indicator, "TOPLEFT",
+                  -SUNDER_GLOW_MARGIN,  SUNDER_GLOW_MARGIN)
+    glow:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT",
+                   SUNDER_GLOW_MARGIN, -SUNDER_GLOW_MARGIN)
     glow:SetColorTexture(0, 1, 0, 0)
     indicator.glow = glow
 
-    -- Dark 1px border framing the icon (WoW debuff icon style)
+    -- Dark 1px border framing the icon
     local iconBorder = indicator:CreateTexture(nil, "BORDER")
-    iconBorder:SetSize(iconSize + 2, iconSize + 2)
+    iconBorder:SetSize(iconSize + SUNDER_ICON_BORDER_PAD, iconSize + SUNDER_ICON_BORDER_PAD)
     iconBorder:SetPoint("TOPLEFT", indicator, "TOPLEFT", 0, 0)
     iconBorder:SetColorTexture(0, 0, 0, 1)
     indicator.iconBorder = iconBorder
 
-    -- Sunder Armor spell icon, edge-trimmed exactly like WoW's debuff frames
+    -- Sunder Armor spell icon
     local icon = indicator:CreateTexture(nil, "ARTWORK")
     icon:SetSize(iconSize, iconSize)
-    icon:SetPoint("TOPLEFT", iconBorder, "TOPLEFT", 1, -1)
+    icon:SetPoint("TOPLEFT", iconBorder, "TOPLEFT",
+                   SUNDER_ICON_BORDER_INSET, -SUNDER_ICON_BORDER_INSET)
     icon:SetTexture(sunderIconTexture)
-    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    icon:SetTexCoord(unpack(SUNDER_ICON_TEXCOORD))
     indicator.icon = icon
 
     -- Stack count badge — bottom-right of icon, identical to default debuff display
     local count = indicator:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -1)
+    count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT",
+                    SUNDER_COUNT_OFFSET_X, SUNDER_COUNT_OFFSET_Y)
     count:SetJustifyH("RIGHT")
     count:SetShadowColor(0, 0, 0, 1)
-    count:SetShadowOffset(1, -1)
+    count:SetShadowOffset(SUNDER_SHADOW_OFFSET_X, SUNDER_SHADOW_OFFSET_Y)
     indicator.count = count
 
     -- Five pip squares below the icon, one per stack
     local pips = {}
-    for j = 1, MAX_STACKS do
+    for j = 1, SUNDER_MAX_STACKS do
         local pip = indicator:CreateTexture(nil, "ARTWORK")
-        pip:SetSize(PIP_SIZE, PIP_SIZE - 1)
-        pip:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", (j - 1) * (PIP_SIZE + PIP_GAP), -(PIP_GAP + 1))
+        pip:SetSize(SUNDER_PIP_SIZE, SUNDER_PIP_SIZE - 1)
+        pip:SetPoint("TOPLEFT", icon, "BOTTOMLEFT",
+                     (j - 1) * (SUNDER_PIP_SIZE + SUNDER_PIP_GAP), -(SUNDER_PIP_GAP + 1))
         pips[j] = pip
     end
     indicator.pips = pips
@@ -143,20 +146,26 @@ local function ApplyIndicatorLayout(nameplate, indicator)
     local iconSize = settings.iconSize
 
     indicator:ClearAllPoints()
-    indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT", -1, -3)
-    indicator:SetSize(iconSize + 2, iconSize + PIP_SIZE + PIP_GAP + 2)
+    indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT",
+                       SUNDER_ICON_ANCHOR_X, SUNDER_ICON_ANCHOR_Y)
+    indicator:SetSize(iconSize + SUNDER_ICON_BORDER_PAD,
+                      iconSize + SUNDER_PIP_SIZE + SUNDER_PIP_GAP + SUNDER_ICON_BORDER_PAD)
 
-    indicator.iconBorder:SetSize(iconSize + 2, iconSize + 2)
+    indicator.iconBorder:SetSize(iconSize + SUNDER_ICON_BORDER_PAD,
+                                 iconSize + SUNDER_ICON_BORDER_PAD)
     indicator.icon:ClearAllPoints()
-    indicator.icon:SetPoint("TOPLEFT", indicator.iconBorder, "TOPLEFT", 1, -1)
+    indicator.icon:SetPoint("TOPLEFT", indicator.iconBorder, "TOPLEFT",
+                             SUNDER_ICON_BORDER_INSET, -SUNDER_ICON_BORDER_INSET)
     indicator.icon:SetSize(iconSize, iconSize)
 
     indicator.count:ClearAllPoints()
-    indicator.count:SetPoint("BOTTOMRIGHT", indicator.icon, "BOTTOMRIGHT", 2, -1)
+    indicator.count:SetPoint("BOTTOMRIGHT", indicator.icon, "BOTTOMRIGHT",
+                              SUNDER_COUNT_OFFSET_X, SUNDER_COUNT_OFFSET_Y)
 
-    for j = 1, MAX_STACKS do
+    for j = 1, SUNDER_MAX_STACKS do
         indicator.pips[j]:ClearAllPoints()
-        indicator.pips[j]:SetPoint("TOPLEFT", indicator.icon, "BOTTOMLEFT", (j - 1) * (PIP_SIZE + PIP_GAP), -(PIP_GAP + 1))
+        indicator.pips[j]:SetPoint("TOPLEFT", indicator.icon, "BOTTOMLEFT",
+                                   (j - 1) * (SUNDER_PIP_SIZE + SUNDER_PIP_GAP), -(SUNDER_PIP_GAP + 1))
     end
 
     indicator.iconSize = iconSize
@@ -169,18 +178,19 @@ local function SetIndicatorVisual(indicator, stacks)
         return
     end
 
-    local isMax = stacks >= MAX_STACKS
+    local isMax = stacks >= SUNDER_MAX_STACKS
     -- Amber while building, cyan-blue when maxed
-    local r, g, b = isMax and 0.2 or 1.0,
-                    isMax and 0.8 or 0.65,
-                    isMax and 0.5 or 0.0
+    local r = isMax and SUNDER_COLOR_MAX_R or SUNDER_COLOR_BUILD_R
+    local g = isMax and SUNDER_COLOR_MAX_G or SUNDER_COLOR_BUILD_G
+    local b = isMax and SUNDER_COLOR_MAX_B or SUNDER_COLOR_BUILD_B
 
     -- Icon border tint
-    indicator.iconBorder:SetColorTexture(r * 0.55, g * 0.55, b * 0.55, 1)
+    indicator.iconBorder:SetColorTexture(r * SUNDER_BORDER_DARKEN,
+                                         g * SUNDER_BORDER_DARKEN,
+                                         b * SUNDER_BORDER_DARKEN, 1)
 
-    -- Glow: pulse green at max, hidden otherwise
-    -- Set with visible base alpha so the pulse effect is actually visible
-    indicator.glow:SetColorTexture(r, g, b, isMax and 0.4 or 0)
+    -- Glow: pulse at max, hidden otherwise
+    indicator.glow:SetColorTexture(r, g, b, isMax and SUNDER_PULSE_ALPHA_MAX or 0)
     if isMax then
         StartPulse(indicator)
     else
@@ -190,23 +200,25 @@ local function SetIndicatorVisual(indicator, stacks)
     -- Count badge: hidden at 1 (obvious), shown at 2+ only if enabled
     if settings.showCounter and stacks > 1 then
         indicator.count:SetText(stacks)
-        indicator.count:SetTextColor(isMax and 0.3 or 1, 1, isMax and 0.3 or 1, 1)
+        indicator.count:SetTextColor(isMax and SUNDER_COUNT_MAX_TINT or 1, 1,
+                                     isMax and SUNDER_COUNT_MAX_TINT or 1, 1)
     else
         indicator.count:SetText("")
     end
 
     -- Fill pips: lit = stack colour, unlit = dark grey, only if enabled
     if settings.showPips then
-        for j = 1, MAX_STACKS do
+        for j = 1, SUNDER_MAX_STACKS do
             if j <= stacks then
-                indicator.pips[j]:SetColorTexture(r, g, b, 0.92)
+                indicator.pips[j]:SetColorTexture(r, g, b, SUNDER_PIP_LIT_ALPHA)
             else
-                indicator.pips[j]:SetColorTexture(0.15, 0.15, 0.15, 0.70)
+                indicator.pips[j]:SetColorTexture(SUNDER_PIP_DIM_R, SUNDER_PIP_DIM_G,
+                                                  SUNDER_PIP_DIM_B, SUNDER_PIP_DIM_ALPHA)
             end
         end
     else
         -- Hide all pips if disabled
-        for j = 1, MAX_STACKS do
+        for j = 1, SUNDER_MAX_STACKS do
             indicator.pips[j]:SetColorTexture(0, 0, 0, 0)
         end
     end
@@ -279,7 +291,7 @@ end
 
 local function CreateOptionsUI()
     local frame = CreateFrame("Frame", "SunderOptionsFrame", UIParent)
-    frame:SetSize(320, 280)
+    frame:SetSize(SUNDER_OPTIONS_WIDTH, SUNDER_OPTIONS_HEIGHT)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     frame:SetFrameStrata("DIALOG")
     frame:Hide()
@@ -287,31 +299,36 @@ local function CreateOptionsUI()
     -- Background texture
     local bg = frame:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints(frame)
-    bg:SetColorTexture(0.1, 0.1, 0.1, 0.9)
+    bg:SetColorTexture(SUNDER_OPTIONS_BG_R, SUNDER_OPTIONS_BG_G,
+                       SUNDER_OPTIONS_BG_B, SUNDER_OPTIONS_BG_A)
 
     -- Border (simple dark frame)
     local border = frame:CreateTexture(nil, "BORDER")
     border:SetAllPoints(frame)
-    border:SetColorTexture(0.3, 0.3, 0.3, 1)
+    border:SetColorTexture(SUNDER_OPTIONS_BORDER_R, SUNDER_OPTIONS_BORDER_G,
+                           SUNDER_OPTIONS_BORDER_B, 1)
     border:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
     border:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     border:SetHeight(2)
 
     local borderBottom = frame:CreateTexture(nil, "BORDER")
     borderBottom:SetAllPoints(frame)
-    borderBottom:SetColorTexture(0.3, 0.3, 0.3, 1)
+    borderBottom:SetColorTexture(SUNDER_OPTIONS_BORDER_R, SUNDER_OPTIONS_BORDER_G,
+                                 SUNDER_OPTIONS_BORDER_B, 1)
     borderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
     borderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
     borderBottom:SetHeight(2)
 
     local borderLeft = frame:CreateTexture(nil, "BORDER")
-    borderLeft:SetColorTexture(0.3, 0.3, 0.3, 1)
+    borderLeft:SetColorTexture(SUNDER_OPTIONS_BORDER_R, SUNDER_OPTIONS_BORDER_G,
+                               SUNDER_OPTIONS_BORDER_B, 1)
     borderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
     borderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
     borderLeft:SetWidth(2)
 
     local borderRight = frame:CreateTexture(nil, "BORDER")
-    borderRight:SetColorTexture(0.3, 0.3, 0.3, 1)
+    borderRight:SetColorTexture(SUNDER_OPTIONS_BORDER_R, SUNDER_OPTIONS_BORDER_G,
+                                SUNDER_OPTIONS_BORDER_B, 1)
     borderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     borderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
     borderRight:SetWidth(2)
@@ -354,8 +371,8 @@ local function CreateOptionsUI()
 
     local iconSizeSlider = CreateFrame("Slider", "SunderIconSizeSlider", frame, "OptionsSliderTemplate")
     iconSizeSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -140)
-    iconSizeSlider:SetSize(270, 20)
-    iconSizeSlider:SetMinMaxValues(16, 32)
+    iconSizeSlider:SetSize(SUNDER_SLIDER_WIDTH, 20)
+    iconSizeSlider:SetMinMaxValues(SUNDER_ICON_SIZE_MIN, SUNDER_ICON_SIZE_MAX)
     iconSizeSlider:SetValue(settings.iconSize)
     iconSizeSlider:SetValueStep(1)
     iconSizeSlider:SetScript("OnValueChanged", function(self, value)
@@ -382,8 +399,8 @@ local function CreateOptionsUI()
 
     local pulseSpeedSlider = CreateFrame("Slider", "SunderPulseSpeedSlider", frame, "OptionsSliderTemplate")
     pulseSpeedSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -220)
-    pulseSpeedSlider:SetSize(270, 20)
-    pulseSpeedSlider:SetMinMaxValues(0.5, 6)
+    pulseSpeedSlider:SetSize(SUNDER_SLIDER_WIDTH, 20)
+    pulseSpeedSlider:SetMinMaxValues(SUNDER_PULSE_SPEED_MIN, SUNDER_PULSE_SPEED_MAX)
     pulseSpeedSlider:SetValue(settings.pulseSpeed)
     pulseSpeedSlider:SetValueStep(0.1)
     pulseSpeedSlider:SetScript("OnValueChanged", function(self, value)
