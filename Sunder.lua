@@ -12,6 +12,14 @@ local sunderSpellIds = {
 local trackedNameplates = {}
 local isEnabled = true
 
+local ICON_SIZE    = 22
+local PIP_SIZE     = 5
+local PIP_GAP      = 3
+local MAX_STACKS   = 5
+local PULSE_SPEED  = 3  -- radians per second
+
+local sunderIconTexture = GetSpellTexture(7386)
+
 local function IsNameplateUnit(unit)
     return type(unit) == "string" and unit:match("^nameplate%d+$") ~= nil
 end
@@ -42,6 +50,19 @@ local function GetNameplateHealthBar(nameplate)
     return nameplate.UnitFrame.healthBar or nameplate.UnitFrame.HealthBar
 end
 
+local function StopPulse(indicator)
+    indicator:SetScript("OnUpdate", nil)
+    indicator.glow:SetAlpha(0)
+end
+
+local function StartPulse(indicator)
+    indicator.pulseTime = indicator.pulseTime or 0
+    indicator:SetScript("OnUpdate", function(self, elapsed)
+        self.pulseTime = self.pulseTime + elapsed
+        self.glow:SetAlpha(0.45 + 0.45 * math.sin(self.pulseTime * PULSE_SPEED))
+    end)
+end
+
 local function BuildIndicator(nameplate)
     if nameplate.SunderIndicator then
         return nameplate.SunderIndicator
@@ -52,36 +73,53 @@ local function BuildIndicator(nameplate)
         return nil
     end
 
+    -- Root container sits just below the health bar, left-aligned
     local indicator = CreateFrame("Frame", nil, nameplate)
     indicator:SetFrameStrata(nameplate:GetFrameStrata())
-    indicator:SetFrameLevel((healthBar:GetFrameLevel() or nameplate:GetFrameLevel()) + 15)
-    indicator:SetAllPoints(healthBar)
+    indicator:SetFrameLevel(healthBar:GetFrameLevel() + 15)
+    indicator:SetSize(ICON_SIZE + 2, ICON_SIZE + PIP_SIZE + PIP_GAP + 2)
+    indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT", -1, -3)
     indicator:Hide()
 
-    indicator.borderTop = indicator:CreateTexture(nil, "OVERLAY")
-    indicator.borderTop:SetHeight(2)
-    indicator.borderTop:SetPoint("TOPLEFT", indicator, "TOPLEFT", -3, 3)
-    indicator.borderTop:SetPoint("TOPRIGHT", indicator, "TOPRIGHT", 3, 3)
+    -- Pulsing glow halo behind the icon (green at max stacks)
+    local glow = indicator:CreateTexture(nil, "BACKGROUND")
+    glow:SetPoint("TOPLEFT",     indicator, "TOPLEFT",     -3,  3)
+    glow:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT",  3, -3)
+    glow:SetColorTexture(0, 1, 0, 0)
+    indicator.glow = glow
 
-    indicator.borderBottom = indicator:CreateTexture(nil, "OVERLAY")
-    indicator.borderBottom:SetHeight(2)
-    indicator.borderBottom:SetPoint("BOTTOMLEFT", indicator, "BOTTOMLEFT", -3, -3)
-    indicator.borderBottom:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT", 3, -3)
+    -- Dark 1px border framing the icon (WoW debuff icon style)
+    local iconBorder = indicator:CreateTexture(nil, "BORDER")
+    iconBorder:SetSize(ICON_SIZE + 2, ICON_SIZE + 2)
+    iconBorder:SetPoint("TOPLEFT", indicator, "TOPLEFT", 0, 0)
+    iconBorder:SetColorTexture(0, 0, 0, 1)
+    indicator.iconBorder = iconBorder
 
-    indicator.borderLeft = indicator:CreateTexture(nil, "OVERLAY")
-    indicator.borderLeft:SetWidth(2)
-    indicator.borderLeft:SetPoint("TOPLEFT", indicator, "TOPLEFT", -3, 3)
-    indicator.borderLeft:SetPoint("BOTTOMLEFT", indicator, "BOTTOMLEFT", -3, -3)
+    -- Sunder Armor spell icon, edge-trimmed exactly like WoW's debuff frames
+    local icon = indicator:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(ICON_SIZE, ICON_SIZE)
+    icon:SetPoint("TOPLEFT", iconBorder, "TOPLEFT", 1, -1)
+    icon:SetTexture(sunderIconTexture)
+    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    indicator.icon = icon
 
-    indicator.borderRight = indicator:CreateTexture(nil, "OVERLAY")
-    indicator.borderRight:SetWidth(2)
-    indicator.borderRight:SetPoint("TOPRIGHT", indicator, "TOPRIGHT", 3, 3)
-    indicator.borderRight:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT", 3, -3)
+    -- Stack count badge — bottom-right of icon, identical to default debuff display
+    local count = indicator:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -1)
+    count:SetJustifyH("RIGHT")
+    count:SetShadowColor(0, 0, 0, 1)
+    count:SetShadowOffset(1, -1)
+    indicator.count = count
 
-    indicator.text = indicator:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    indicator.text:SetPoint("CENTER", indicator, "CENTER", 0, 0)
-    indicator.text:SetJustifyH("CENTER")
-    indicator.text:SetJustifyV("MIDDLE")
+    -- Five pip squares below the icon, one per stack
+    local pips = {}
+    for j = 1, MAX_STACKS do
+        local pip = indicator:CreateTexture(nil, "ARTWORK")
+        pip:SetSize(PIP_SIZE, PIP_SIZE - 1)
+        pip:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", (j - 1) * (PIP_SIZE + PIP_GAP), -(PIP_GAP + 1))
+        pips[j] = pip
+    end
+    indicator.pips = pips
 
     nameplate.SunderIndicator = indicator
     return indicator
@@ -89,25 +127,45 @@ end
 
 local function SetIndicatorVisual(indicator, stacks)
     if stacks <= 0 then
+        StopPulse(indicator)
         indicator:Hide()
         return
     end
 
-    local r, g, b = 1, 0.82, 0.1
-    local text = tostring(stacks)
+    local isMax = stacks >= MAX_STACKS
+    -- Amber while building, green when maxed
+    local r, g, b = isMax and 0.2 or 1.0,
+                    isMax and 1.0 or 0.65,
+                    isMax and 0.2 or 0.0
 
-    if stacks >= 5 then
-        r, g, b = 0.2, 1, 0.2
-        text = text .. " MAX"
+    -- Icon border tint
+    indicator.iconBorder:SetColorTexture(r * 0.55, g * 0.55, b * 0.55, 1)
+
+    -- Glow: pulse green at max, hidden otherwise
+    indicator.glow:SetColorTexture(r, g, b, 0)
+    if isMax then
+        StartPulse(indicator)
+    else
+        StopPulse(indicator)
     end
 
-    indicator.borderTop:SetColorTexture(r, g, b, 0.95)
-    indicator.borderBottom:SetColorTexture(r, g, b, 0.95)
-    indicator.borderLeft:SetColorTexture(r, g, b, 0.95)
-    indicator.borderRight:SetColorTexture(r, g, b, 0.95)
+    -- Count badge: hidden at 1 (obvious), shown at 2+
+    if stacks > 1 then
+        indicator.count:SetText(stacks)
+        indicator.count:SetTextColor(isMax and 0.3 or 1, 1, isMax and 0.3 or 1, 1)
+    else
+        indicator.count:SetText("")
+    end
 
-    indicator.text:SetText(text)
-    indicator.text:SetTextColor(r, g, b, 1)
+    -- Fill pips: lit = stack colour, unlit = dark grey
+    for j = 1, MAX_STACKS do
+        if j <= stacks then
+            indicator.pips[j]:SetColorTexture(r, g, b, 0.92)
+        else
+            indicator.pips[j]:SetColorTexture(0.15, 0.15, 0.15, 0.70)
+        end
+    end
+
     indicator:Show()
 end
 
