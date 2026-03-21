@@ -18,13 +18,13 @@ end
 
 local function GetSunderStacks(unit)
     for i = 1, 40 do
-        local name, _, _, count, _, _, _, _, _, spellId = UnitDebuff(unit, i)
+        local name, _, count, _, _, _, _, _, _, spellId = UnitDebuff(unit, i)
         if not name then
             break
         end
 
         if (sunderSpellName and name == sunderSpellName) or sunderSpellIds[spellId] then
-            if count and count > 0 then
+            if type(count) == "number" and count > 0 then
                 return count
             end
             return 1
