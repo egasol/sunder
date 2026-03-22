@@ -62,7 +62,9 @@ local function StartPulse(indicator)
     indicator.pulseTime = indicator.pulseTime or 0
     indicator:SetScript("OnUpdate", function(self, elapsed)
         self.pulseTime = self.pulseTime + elapsed
-        self.glow:SetAlpha(SUNDER_PULSE_ALPHA_MIN + SUNDER_PULSE_ALPHA_MAX * math.sin(self.pulseTime * settings.pulseSpeed))
+        local normalized = (math.sin(self.pulseTime * settings.pulseSpeed) + 1) * 0.5
+        local alpha = SUNDER_PULSE_ALPHA_MIN + (SUNDER_PULSE_ALPHA_MAX - SUNDER_PULSE_ALPHA_MIN) * normalized
+        self.glow:SetAlpha(alpha)
     end)
 end
 
