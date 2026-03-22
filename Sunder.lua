@@ -18,6 +18,7 @@ local sunderSpellIds = {
 }
 
 local trackedNameplates = {}
+local sunderIndexCache = {}
 local isEnabled = true
 
 local sunderIconTexture = GetSpellTexture(SUNDER_SPELL_ID)
@@ -26,20 +27,48 @@ local function IsNameplateUnit(unit)
     return type(unit) == "string" and unit:match("^nameplate%d+$") ~= nil
 end
 
+local function IsTrackedSunderDebuff(name, spellId)
+    if spellId and sunderSpellIds[spellId] then
+        return true
+    end
+
+    if name and sunderSpellName and name == sunderSpellName then
+        return true
+    end
+
+    return false
+end
+
 local function GetSunderStacks(unit)
+    local cachedIndex = sunderIndexCache[unit]
+    if cachedIndex then
+        local name, _, count, _, _, _, _, _, _, spellId = UnitDebuff(unit, cachedIndex)
+        if name and IsTrackedSunderDebuff(name, spellId) then
+            if type(count) == "number" and count > 0 then
+                return count
+            end
+            return 1
+        end
+
+        sunderIndexCache[unit] = nil
+    end
+
     for i = 1, SUNDER_DEBUFF_SCAN_MAX do
         local name, _, count, _, _, _, _, _, _, spellId = UnitDebuff(unit, i)
         if not name then
             break
         end
 
-        if (sunderSpellName and name == sunderSpellName) or sunderSpellIds[spellId] then
+        if IsTrackedSunderDebuff(name, spellId) then
+            sunderIndexCache[unit] = i
             if type(count) == "number" and count > 0 then
                 return count
             end
             return 1
         end
     end
+
+    sunderIndexCache[unit] = nil
 
     return 0
 end
@@ -247,6 +276,7 @@ end
 
 local function UnregisterNameplate(unit)
     trackedNameplates[unit] = nil
+    sunderIndexCache[unit] = nil
 
     local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
     if nameplate and nameplate.SunderIndicator then
@@ -461,6 +491,7 @@ addonFrame:SetScript("OnEvent", function(_, event, unit)
 
     if event == "PLAYER_ENTERING_WORLD" then
         wipe(trackedNameplates)
+        wipe(sunderIndexCache)
 
         for _, plate in ipairs(C_NamePlate.GetNamePlates() or {}) do
             if plate.namePlateUnitToken then
