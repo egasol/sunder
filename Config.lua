@@ -24,13 +24,6 @@ SUNDER_ICON_TEXCOORD        = { 0.07, 0.93, 0.07, 0.93 }  -- Edge crop, WoW debu
 SUNDER_PIP_SIZE         = 5    -- Width and base height of each stack pip square
 SUNDER_PIP_GAP          = 3    -- Gap between pips
 
--- Glow layout
-SUNDER_GLOW_MARGIN      = 3    -- Extra px the glow extends beyond the indicator border
-
--- Pulse animation
-SUNDER_PULSE_ALPHA_MIN  = 0.00  -- Glow alpha at the trough of the sine wave
-SUNDER_PULSE_ALPHA_MAX  = 0.90  -- Glow alpha at the peak  of the sine wave
-
 -- Colors (R, G, B components, 0-1)
 -- Building stacks (amber)
 SUNDER_COLOR_BUILD_R    = 1.00
@@ -40,6 +33,11 @@ SUNDER_COLOR_BUILD_B    = 0.00
 SUNDER_COLOR_MAX_R      = 0.20
 SUNDER_COLOR_MAX_G      = 0.80
 SUNDER_COLOR_MAX_B      = 0.50
+
+-- Icon tint when at max stacks (steady, non-pulsing)
+SUNDER_ICON_MAX_TINT_R  = 0.45
+SUNDER_ICON_MAX_TINT_G  = 0.95
+SUNDER_ICON_MAX_TINT_B  = 0.45
 
 -- Derived color factors
 SUNDER_BORDER_DARKEN    = 0.55  -- Border is this fraction of the stack color
@@ -69,5 +67,3 @@ SUNDER_OPTIONS_BORDER_B = 0.30
 SUNDER_SLIDER_WIDTH     = 270
 SUNDER_ICON_SIZE_MIN    = 16
 SUNDER_ICON_SIZE_MAX    = 32
-SUNDER_PULSE_SPEED_MIN  = 0.5
-SUNDER_PULSE_SPEED_MAX  = 6.0

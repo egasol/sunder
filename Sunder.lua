@@ -4,7 +4,6 @@ local DEFAULTS = {
     showCounter = true,
     showPips = true,
     iconSize = 22,
-    pulseSpeed = 3,
 }
 
 local settings = {}
@@ -53,21 +52,6 @@ local function GetNameplateHealthBar(nameplate)
     return nameplate.UnitFrame.healthBar or nameplate.UnitFrame.HealthBar
 end
 
-local function StopPulse(indicator)
-    indicator:SetScript("OnUpdate", nil)
-    indicator.glow:SetAlpha(0)
-end
-
-local function StartPulse(indicator)
-    indicator.pulseTime = indicator.pulseTime or 0
-    indicator:SetScript("OnUpdate", function(self, elapsed)
-        self.pulseTime = self.pulseTime + elapsed
-        local normalized = (math.sin(self.pulseTime * settings.pulseSpeed) + 1) * 0.5
-        local alpha = SUNDER_PULSE_ALPHA_MIN + (SUNDER_PULSE_ALPHA_MAX - SUNDER_PULSE_ALPHA_MIN) * normalized
-        self.glow:SetAlpha(alpha)
-    end)
-end
-
 local function BuildIndicator(nameplate)
     if nameplate.SunderIndicator then
         return nameplate.SunderIndicator
@@ -88,15 +72,6 @@ local function BuildIndicator(nameplate)
     indicator:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT",
                        SUNDER_ICON_ANCHOR_X, SUNDER_ICON_ANCHOR_Y)
     indicator:Hide()
-
-    -- Pulsing glow halo behind the icon (green at max stacks)
-    local glow = indicator:CreateTexture(nil, "BACKGROUND")
-    glow:SetPoint("TOPLEFT",     indicator, "TOPLEFT",
-                  -SUNDER_GLOW_MARGIN,  SUNDER_GLOW_MARGIN)
-    glow:SetPoint("BOTTOMRIGHT", indicator, "BOTTOMRIGHT",
-                   SUNDER_GLOW_MARGIN, -SUNDER_GLOW_MARGIN)
-    glow:SetColorTexture(0, 1, 0, 0)
-    indicator.glow = glow
 
     -- Dark 1px border framing the icon
     local iconBorder = indicator:CreateTexture(nil, "BORDER")
@@ -175,7 +150,7 @@ end
 
 local function SetIndicatorVisual(indicator, stacks)
     if stacks <= 0 then
-        StopPulse(indicator)
+        indicator.icon:SetVertexColor(1, 1, 1, 1)
         indicator:Hide()
         return
     end
@@ -186,17 +161,16 @@ local function SetIndicatorVisual(indicator, stacks)
     local g = isMax and SUNDER_COLOR_MAX_G or SUNDER_COLOR_BUILD_G
     local b = isMax and SUNDER_COLOR_MAX_B or SUNDER_COLOR_BUILD_B
 
-    -- Icon border tint
-    indicator.iconBorder:SetColorTexture(r * SUNDER_BORDER_DARKEN,
-                                         g * SUNDER_BORDER_DARKEN,
-                                         b * SUNDER_BORDER_DARKEN, 1)
+    -- Keep border neutral; max-stack emphasis is on icon tint, not pulsing
+    indicator.iconBorder:SetColorTexture(0, 0, 0, 1)
 
-    -- Glow: pulse at max, hidden otherwise
-    indicator.glow:SetColorTexture(r, g, b, isMax and SUNDER_PULSE_ALPHA_MAX or 0)
+    -- Stable max-stack icon tint (green), normal icon color otherwise
     if isMax then
-        StartPulse(indicator)
+        indicator.icon:SetVertexColor(SUNDER_ICON_MAX_TINT_R,
+                                      SUNDER_ICON_MAX_TINT_G,
+                                      SUNDER_ICON_MAX_TINT_B, 1)
     else
-        StopPulse(indicator)
+        indicator.icon:SetVertexColor(1, 1, 1, 1)
     end
 
     -- Count badge: hidden at 1 (obvious), shown at 2+ only if enabled
@@ -394,27 +368,6 @@ local function CreateOptionsUI()
     iconSizeSlider.text:SetPoint("BOTTOM", iconSizeSlider, "TOP", 0, 2)
     iconSizeSlider.text:SetText("Icon Size: " .. settings.iconSize .. "px")
 
-    -- Pulse Speed slider
-    local pulseSpeedLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pulseSpeedLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -195)
-    pulseSpeedLabel:SetText("Pulse Speed:")
-
-    local pulseSpeedSlider = CreateFrame("Slider", "SunderPulseSpeedSlider", frame, "OptionsSliderTemplate")
-    pulseSpeedSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -220)
-    pulseSpeedSlider:SetSize(SUNDER_SLIDER_WIDTH, 20)
-    pulseSpeedSlider:SetMinMaxValues(SUNDER_PULSE_SPEED_MIN, SUNDER_PULSE_SPEED_MAX)
-    pulseSpeedSlider:SetValue(settings.pulseSpeed)
-    pulseSpeedSlider:SetValueStep(0.1)
-    pulseSpeedSlider:SetScript("OnValueChanged", function(self, value)
-        settings.pulseSpeed = tonumber(string.format("%.1f", value))
-        SunderDB.pulseSpeed = settings.pulseSpeed
-        pulseSpeedSlider.text:SetText("Pulse Speed: " .. settings.pulseSpeed)
-        RefreshAllNameplates()
-    end)
-    pulseSpeedSlider.text = pulseSpeedSlider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    pulseSpeedSlider.text:SetPoint("BOTTOM", pulseSpeedSlider, "TOP", 0, 2)
-    pulseSpeedSlider.text:SetText("Pulse Speed: " .. settings.pulseSpeed)
-
     -- Close button
     local closeBtn = CreateFrame("Button", nil, frame, "GameMenuButtonTemplate")
     closeBtn:SetSize(100, 25)
@@ -429,8 +382,6 @@ local function CreateOptionsUI()
         pipsCB:SetChecked(settings.showPips)
         iconSizeSlider:SetValue(settings.iconSize)
         iconSizeSlider.text:SetText("Icon Size: " .. settings.iconSize .. "px")
-        pulseSpeedSlider:SetValue(settings.pulseSpeed)
-        pulseSpeedSlider.text:SetText("Pulse Speed: " .. settings.pulseSpeed)
     end
 
     return frame
