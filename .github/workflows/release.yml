@@ -1,24 +1,20 @@
 name: Package and Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - '*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: CurseForge Upload
-        uses: Cursered/curseforge-upload@v0
-        with:
-          file_path: './'
-          game_id: 1
-          project_id: '1491653'
-          api_key: ${{ secrets.CF_API_KEY }}
-          release_type: 'release'
-          game_versions: '1.15.8'
+      - name: Package and Upload
+        uses: BigWigsMods/packager@v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}

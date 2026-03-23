@@ -4,6 +4,7 @@
 ## Author: You
 ## Version: 1.0.0
 ## SavedVariables: SunderDB
+## X-Curse-Project-ID: 1491653
 
 Config.lua
 Sunder.lua
